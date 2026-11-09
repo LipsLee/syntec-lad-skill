@@ -29,8 +29,10 @@ The installer:
 4. backs up an existing `mcp.json`;
 5. runs CLI and MCP self-checks before changing anything.
 
-After installation, fully exit WorkBuddy, reopen it, open the
-Connector/MCP -> Custom page, and trust/enable `syntec-lad`.
+WorkBuddy 5.9.3 reads `~/.workbuddy/mcp.json` and treats an entry with a
+`command` as a stdio server. After installation, fully exit WorkBuddy,
+reopen it, open the MCP Servers page, and confirm `syntec-lad` is listed.
+Approve/trust it if WorkBuddy prompts.
 
 ## Other MCP clients
 

@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("下一步：")
     print("1. 完全退出并重新打开 WorkBuddy（托盘图标右键退出）。")
-    print("2. 到连接器/MCP -> 自定义，找到 syntec-lad 并点“信任/启用”。")
+    print("2. 到“MCP 服务器”页面，确认 syntec-lad 已出现；如有提示，点允许/信任。")
     print("3. 新对话里让它先调用 explain_capabilities，再开始处理 .lad。")
     print()
     print("原生 LadDLL 校验仍要求 Windows、32 位 LadDLL.dll 和 .NET Framework 4.x。")

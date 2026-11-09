@@ -112,8 +112,8 @@ python .\scripts\install_workbuddy.py
 - 安装前备份旧 Skill 目录和旧 MCP 配置
 - 先跑 CLI/MCP 自检，再改动文件
 
-安装后完全退出 WorkBuddy，重新打开，到“连接器 / MCP -> 自定义”里点一次
-“信任/启用”。
+安装后完全退出 WorkBuddy，重新打开，在“MCP 服务器”页面确认
+`syntec-lad` 已出现；若提示授权或信任，点允许。
 
 ### 其他 MCP 客户端
 
@@ -266,4 +266,4 @@ tests/                     unittest 测试
 版权归 `syntec-plc-ladder contributors`。再分发时请保留
 `references/panming/LICENSE` 和 `THIRD_PARTY_NOTICES.md`。
 
-版本：`0.2.0`
+版本：`0.2.1`

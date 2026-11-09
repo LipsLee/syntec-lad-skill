@@ -63,7 +63,8 @@ supports:
 - **WorkBuddy:** run `python .\scripts\install_workbuddy.py` or double-click
   `scripts\install_workbuddy.bat`. It installs this folder under
   `~/.workbuddy/skills/syntec-lad/` and merges the MCP entry into
-  `~/.workbuddy/mcp.json`. Restart WorkBuddy and trust/enable the connector.
+  `~/.workbuddy/mcp.json`. Restart WorkBuddy, confirm `syntec-lad` under
+  MCP Servers, and approve it if prompted.
 - **MCP clients:** register `scripts/syntec_lad_mcp.py` using
   `mcp-config.example.json`. No Python package installation is required.
 - **Agents with shell access:** run `scripts/run_syntec_lad.py` directly.

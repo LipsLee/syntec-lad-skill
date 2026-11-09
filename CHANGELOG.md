@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-11-09
+
+### Fixed
+
+- Documented the WorkBuddy 5.9.3 MCP Servers flow and verified that
+  `~/.workbuddy/mcp.json` is read as a stdio server configuration.
+
 ## 0.2.0 - 2026-11-09
 
 ### Added
