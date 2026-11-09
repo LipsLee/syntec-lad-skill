@@ -86,6 +86,14 @@ $syntec-lad
 也可以从 [GitHub Releases](https://github.com/LipsLee/syntec-lad-skill/releases)
 下载 ZIP，解压后把文件夹命名为 `syntec-lad` 并放入 `~/.codex/skills/`。
 
+国内加速下载（第三方 CDN，包已校验）：
+
+- jsDelivr：
+  <https://cdn.jsdelivr.net/gh/LipsLee/syntec-lad-skill@main/downloads/syntec-lad-skill-0.2.2.zip>
+- gh-proxy 备用：
+  <https://gh-proxy.com/https://raw.githubusercontent.com/LipsLee/syntec-lad-skill/main/downloads/syntec-lad-skill-0.2.2.zip>
+- SHA256：`E565DD29FD24A5B196DD1FCB2C2FF42D17F93F1BADBA1960816CFC1D479BE07A`
+
 Skill 自带启动器，不要求安装 Python 包：
 
 ```powershell
