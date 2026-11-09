@@ -109,15 +109,21 @@ def _check_mcp() -> bool:
     return True
 
 
-def _backup(path: Path) -> Path | None:
+def _backup(path: Path, backup_root: Path | None = None) -> Path | None:
     if not path.exists():
         return None
-    backup = path.with_name(f"{path.name}.bak-{_stamp()}")
+    root = backup_root if backup_root is not None else path.parent
+    root.mkdir(parents=True, exist_ok=True)
+    backup = root / f"{path.name}.bak-{_stamp()}"
     if path.is_dir():
         shutil.move(str(path), str(backup))
     else:
         shutil.copy2(path, backup)
     return backup
+
+
+def _skill_backup_root(skill_dir: Path) -> Path:
+    return skill_dir.parent.parent / f"{skill_dir.parent.name}-backups"
 
 
 def _install_skill(skill_dir: Path) -> None:
@@ -129,7 +135,7 @@ def _install_skill(skill_dir: Path) -> None:
         return
     if source in target.parents:
         raise RuntimeError("目标 Skill 目录不能放在源 Skill 目录内部")
-    backup = _backup(skill_dir)
+    backup = _backup(skill_dir, _skill_backup_root(skill_dir))
     if backup is not None:
         _say("OK", f"旧目录已备份：{backup}")
     shutil.copytree(SKILL_ROOT, skill_dir, ignore=IGNORE)

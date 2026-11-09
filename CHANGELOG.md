@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2 - 2026-11-09
+
+### Fixed
+
+- WorkBuddy Skill backups now live under `~/.workbuddy/skills-backups/`
+  instead of inside the scanned `skills/` directory, preventing a backup from
+  appearing as a duplicate skill.
+
+### Tests
+
+- 65 tests passed, including the WorkBuddy backup-location regression test.
+
 ## 0.2.1 - 2026-11-09
 
 ### Fixed

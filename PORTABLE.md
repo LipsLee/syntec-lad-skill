@@ -24,7 +24,7 @@ Or double-click `scripts\install_workbuddy.bat`.
 The installer:
 
 1. copies this directory to `~/.workbuddy/skills/syntec-lad/`;
-2. backs up an existing skill directory;
+2. backs up an existing skill directory outside the skills scan directory;
 3. merges a `syntec-lad` entry into `~/.workbuddy/mcp.json`;
 4. backs up an existing `mcp.json`;
 5. runs CLI and MCP self-checks before changing anything.

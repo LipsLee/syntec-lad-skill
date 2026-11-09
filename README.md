@@ -109,7 +109,7 @@ python .\scripts\install_workbuddy.py
 
 - 把 Skill 复制到 `~/.workbuddy/skills/syntec-lad/`
 - 合并写入 `~/.workbuddy/mcp.json` 的 `syntec-lad` 服务
-- 安装前备份旧 Skill 目录和旧 MCP 配置
+- 安装前备份旧 Skill 目录和旧 MCP 配置（Skill 备份放在扫描目录之外）
 - 先跑 CLI/MCP 自检，再改动文件
 
 安装后完全退出 WorkBuddy，重新打开，在“MCP 服务器”页面确认
@@ -266,4 +266,4 @@ tests/                     unittest 测试
 版权归 `syntec-plc-ladder contributors`。再分发时请保留
 `references/panming/LICENSE` 和 `THIRD_PARTY_NOTICES.md`。
 
-版本：`0.2.1`
+版本：`0.2.2`
