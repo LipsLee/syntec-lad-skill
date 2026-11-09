@@ -31,6 +31,20 @@ def run_cli(*args: object, timeout: int = 60) -> subprocess.CompletedProcess[str
 
 
 class CliTests(unittest.TestCase):
+    def test_lookup_command(self) -> None:
+        found = run_cli("lookup", "C6")
+        self.assertEqual(found.returncode, 0, found.stderr)
+        self.assertIn("轴向JOG", found.stdout)
+
+        padded = run_cli("lookup", "C006", "--json")
+        self.assertEqual(padded.returncode, 0, padded.stderr)
+        report = json.loads(padded.stdout)
+        self.assertEqual(report["hits"][0]["address"], "C6")
+
+        missing = run_cli("lookup", "R99999")
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("no match", missing.stdout)
+
     def test_build_inspect_validate_diff_and_in_place(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

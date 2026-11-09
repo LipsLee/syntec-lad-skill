@@ -8,6 +8,11 @@ The public surface intentionally separates three concerns:
 * :func:`validate_native` checks compatibility with the real 32-bit LadDLL.
 """
 
+from .address_db import (
+    default_address_db_path,
+    load_address_db,
+    lookup_address,
+)
 from .compiler import build_plan, compile_networks, compile_plan
 from .errors import (
     LadError,
@@ -42,7 +47,7 @@ from .remap import (
     remap_variable_comments,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "CHANGE_SCHEMA",
@@ -63,9 +68,12 @@ __all__ = [
     "build_plan",
     "compile_networks",
     "compile_plan",
+    "default_address_db_path",
     "find_editor",
     "find_lad_dll",
     "inspect_lad",
+    "load_address_db",
+    "lookup_address",
     "open_in_editor",
     "remap_plc_bits",
     "remap_variable_comment_addresses",

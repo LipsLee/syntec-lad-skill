@@ -1,12 +1,14 @@
-# Syntec Ladder SDK / Codex Skill
+# Syntec Ladder SDK / Codex Skill + 工程知识库
 
 一个无第三方 Python 依赖的 Syntec LadEditor 2.37.0 梯形图 SDK、CLI 和
 Codex Skill。它直接读写原生 `.lad` 记录，可检查程序结构、根据审阅过的
 JSON 计划生成新梯形图、按哈希锁定的记录范围修补现有文件、批量重映射
-PLC 位地址，并调用原厂 32 位 `LadDLL.dll` 做语法校验。
+PLC 位地址，并调用原厂 32 位 `LadDLL.dll` 做语法校验。Skill 同时内置
+新代 PLC 工程知识库：8 类元件、C/S/R 地址表、602 条地址索引、12 个工艺
+模式，以及润滑/液压/排屑/刀库/M 码写法库。
 
 本工具不会点击 LadEditor 界面，不会自动上传 CNC，也不会直接修改控制器上
-的 PLC。首版可写范围仅限本地原生 `.lad` 文件。
+的 PLC。当前可写范围仅限本地原生 `.lad` 文件。
 
 ## 功能
 
@@ -16,9 +18,41 @@ PLC 位地址，并调用原厂 32 位 `LadDLL.dll` 做语法校验。
 - `patch`：用 `syntec-lad-change/v1` 对哈希锁定的记录范围做插入、替换、
   删除；过期哈希、跨网络边界和结构行会被拒绝。
 - `remap`：同时替换 I/O、C/S/A 位和 R 寄存器位，避免级联误替换。
+- `lookup`：查询内置 602 条 C/S/R 地址索引，支持地址精确查询和关键词搜索。
 - `validate`：Python 回读校验，并在可用时调用原厂 LadDLL 语法检查。
 - `diff`：按记录和指令单元比较两个 `.lad` 文件。
 - `open`：仅启动 `MLCEdit.exe -f <file>` 供人工复核。
+
+## 工程知识库
+
+`references/panming/` 是从 MIT 许可的
+[`panming/syntec-plc-ladder`](https://github.com/panming/syntec-plc-ladder)
+项目整理的工程知识快照，保留原文和来源标记。内容包括：
+
+- 8 类元件分工、C/S 全表、R 寄存器分配和常见误用。
+- 602 条 C/S/R 地址反向索引，可浏览 Markdown/CSV 或使用 CLI 查询。
+- 12 个真机工艺模式：启保停、自动/手动、报警锁存、定时循环、互锁、
+  模拟量回差、上电初始化等。
+- 润滑、液压、排屑/冷却、刀库/刀塔、M 码五类功能写法库。
+- 现场约定、三层注释、批注编码、R512~R1023 权限表和 `.lad` 技术附录。
+
+知识层用于选结构和查地址；真正的写入仍必须走 `inspect` → JSON 计划/变更
+→ `build`/`patch` → Python 回读 + LadDLL 原生校验。上游 `validate` 只作
+提示，不能替代本项目的原生校验。
+
+上游示例里的 `add_rung` 元件对象不是本项目的 JSON Schema；迁移时要转成
+`syntec-lad-plan/v1` 或 `syntec-lad-change/v1`，以 `syntec_lad/schema/`
+下的 Schema 为准。
+
+知识入口：
+
+- `references/knowledge-map.md`：按任务选择参考资料。
+- `references/address-notation.md`：短地址与 SDK 规范地址的转换。
+- `references/panming/README.md`：上游来源、许可证和文件清单。
+
+融合时保留本项目的原生 SDK/CLI、哈希锁定补丁和 LadDLL 硬校验。新增的
+MCP 适配器和 WorkBuddy 安装器按本项目接口自行实现，没有复制上游服务端；
+上游的 `validate` 只作提示，不作为本项目的交付门。
 
 ## 环境要求
 
@@ -39,7 +73,8 @@ $env:SYNTEC_LAD_EDITOR = 'C:\path\to\LadEditor\MLCEdit.exe'
 ```powershell
 $skills = Join-Path $HOME '.codex\skills'
 New-Item -ItemType Directory -Force -Path $skills | Out-Null
-git clone https://github.com/LipsLee/syntec-lad-skill.git (Join-Path $skills 'syntec-lad')
+$target = Join-Path $skills 'syntec-lad'
+git clone https://github.com/LipsLee/syntec-lad-skill.git $target
 ```
 
 重新打开或刷新 Codex 后，可显式调用：
@@ -57,6 +92,38 @@ Skill 自带启动器，不要求安装 Python 包：
 $LadCli = Join-Path $HOME '.codex\skills\syntec-lad\scripts\run_syntec_lad.py'
 python $LadCli --help
 ```
+
+## 其他 Agent / WorkBuddy
+
+SDK 本身不绑定 Codex。任何能运行 Python 的 Agent 都可以直接调用
+`scripts/run_syntec_lad.py`；支持 MCP 的 Agent 可以注册
+`scripts/syntec_lad_mcp.py`。
+
+### WorkBuddy 一键安装
+
+```powershell
+python .\scripts\install_workbuddy.py
+```
+
+或双击 `scripts\install_workbuddy.bat`。安装器会：
+
+- 把 Skill 复制到 `~/.workbuddy/skills/syntec-lad/`
+- 合并写入 `~/.workbuddy/mcp.json` 的 `syntec-lad` 服务
+- 安装前备份旧 Skill 目录和旧 MCP 配置
+- 先跑 CLI/MCP 自检，再改动文件
+
+安装后完全退出 WorkBuddy，重新打开，到“连接器 / MCP -> 自定义”里点一次
+“信任/启用”。
+
+### 其他 MCP 客户端
+
+Claude Desktop、Cursor 等客户端可使用 `mcp-config.example.json`，把路径
+改成实际位置即可。MCP 工具包括 `inspect_lad`、`lookup_address`、
+`build_plan`、`patch_lad`、`validate_lad`、`diff_lad`、`read_reference`、
+`list_references`、`explain_capabilities`。
+
+跨 Agent 的完整说明见 `PORTABLE.md`。原生 LadDLL 校验仍只支持 Windows +
+32 位 `LadDLL.dll` + .NET Framework 4.x。
 
 ## 直接使用 CLI
 
@@ -77,6 +144,8 @@ python .\scripts\run_syntec_lad.py --help
 
 ```powershell
 python $LadCli inspect .\file.lad
+python $LadCli lookup C6
+python $LadCli lookup "M码"
 python $LadCli build .\plan.json .\new.lad
 python $LadCli validate .\new.lad
 python $LadCli diff .\file.lad .\new.lad
@@ -173,13 +242,28 @@ LadDLL 原生校验。真实 `cnc.lad` 路径不存在时会自动跳过该样�
 
 ```text
 SKILL.md                   Codex Skill 入口与强制安全流程
+CHANGELOG.md               版本变更记录
+THIRD_PARTY_NOTICES.md     第三方知识与 MIT 许可声明
+PORTABLE.md                Codex / WorkBuddy / MCP 通用接入说明
+mcp-config.example.json    MCP 客户端配置示例
 agents/openai.yaml         Skill 展示信息
 scripts/run_syntec_lad.py  免安装启动器
+scripts/syntec_lad_mcp.py  MCP stdio 适配器
+scripts/install_workbuddy.py  WorkBuddy 安装器
 syntec_lad/                Python SDK、CLI 和 JSON Schema
 native/                    x86 LadDLL 校验辅助程序源码
 tools/lad_parser.py        独立的旧版解析/反汇编交叉检查器
+references/                原生工作流与工程知识库
+references/panming/        上游 MIT 知识快照（地址、模式、功能库）
 examples/                  格式示例与回归夹具
 tests/                     unittest 测试
 ```
 
-版本：`0.1.0`
+## 第三方知识
+
+`references/panming/` 的材料来自 `panming/syntec-plc-ladder`，提交
+`29cde41df688055f11fb7b33a5db782b92c7e4d7`，MIT 许可，
+版权归 `syntec-plc-ladder contributors`。再分发时请保留
+`references/panming/LICENSE` 和 `THIRD_PARTY_NOTICES.md`。
+
+版本：`0.2.0`

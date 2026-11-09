@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "syntec-lad": {
+      "command": "python",
+      "args": [
+        "C:/path/to/syntec-lad/scripts/syntec_lad_mcp.py"
+      ]
+    }
+  }
+}

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .address_db import lookup_address
 from .compiler import compile_plan
 from .errors import LadError, LadValidationError, NativeValidationError
 from .inspection import inspect_document, inspect_lad, render_inspection
@@ -129,6 +130,27 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(text, encoding="utf-8")
     return 0
+
+
+def _cmd_lookup(args: argparse.Namespace) -> int:
+    hits = lookup_address(args.query, limit=args.limit)
+    payload = {
+        "query": args.query,
+        "count": len(hits),
+        "hits": hits,
+    }
+    if args.json:
+        _write_json(None, payload)
+    elif not hits:
+        print(
+            f"no match for {args.query!r} in the bundled 602-address index; "
+            "see references/panming/address-map.md for the full address model"
+        )
+    else:
+        for hit in hits:
+            descriptions = " | ".join(hit["descriptions"])
+            print(f"{hit['address']}  [{hit['type']}]  {descriptions}")
+    return 0 if hits else 1
 
 
 def _cmd_build(args: argparse.Namespace) -> int:
@@ -463,8 +485,17 @@ def build_parser() -> argparse.ArgumentParser:
         prog="syntec-lad",
         description="Read, generate, patch, and validate Syntec MLCEdit .lad files.",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
+    parser.add_argument("--version", action="version", version="%(prog)s 0.2.0")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    lookup = sub.add_parser(
+        "lookup",
+        help="look up a C/S/R address or keyword in the bundled engineering index",
+    )
+    lookup.add_argument("query", help="address (C6/C006, R600.1) or keyword")
+    lookup.add_argument("--json", action="store_true", help="emit JSON")
+    lookup.add_argument("--limit", type=int, default=20, help="maximum keyword hits")
+    lookup.set_defaults(func=_cmd_lookup)
 
     inspect = sub.add_parser("inspect", help="show programs, comments, records, and network candidates")
     inspect.add_argument("lad")

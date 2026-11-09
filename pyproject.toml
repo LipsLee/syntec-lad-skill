@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "syntec-lad"
-version = "0.1.0"
-description = "Deterministic SDK and Codex skill for Syntec LadEditor .lad files"
+version = "0.2.0"
+description = "Deterministic SDK, engineering knowledge base, and Codex skill for Syntec LadEditor .lad files"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
@@ -17,6 +17,7 @@ classifiers = [
 
 [project.scripts]
 syntec-lad = "syntec_lad.cli:main"
+syntec-lad-mcp = "syntec_lad.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/LipsLee/syntec-lad-skill"
@@ -26,4 +27,4 @@ Issues = "https://github.com/LipsLee/syntec-lad-skill/issues"
 include = ["syntec_lad*"]
 
 [tool.setuptools.package-data]
-syntec_lad = ["schema/*.json"]
+syntec_lad = ["schema/*.json", "data/*.json"]

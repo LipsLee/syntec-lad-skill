@@ -3,6 +3,22 @@
 本参考用于需要修改现有梯形图、生成新梯形图、批量重映射地址或排查原生
 校验失败时。Skill 的强制安全规则仍以 `SKILL.md` 为准。
 
+## 0. 写计划前先过知识门
+
+不要凭记忆猜地址类别或工艺结构。先按任务读取最小必要的知识文件：
+
+- 地址类别、权限、C/S/R 含义：`panming/address-map.md`
+- 精确地址：`python $LadCli lookup C6` 或
+  `panming/address-index.md`
+- 元件语法：`panming/element-grammar.md`
+- 常用回路：`panming/patterns.md`
+- 润滑/液压/排屑/刀库/M 码：`panming/function-library.md`
+- 现场约定和注释：`panming/project-conventions.md`
+- 短地址与 SDK 规范地址：`address-notation.md`
+
+如果知识文件给出的是真机示例，只复用结构，不复用它的具体 I/O、寄存器、
+定时器、预置值或互锁关系。缺失值必须向用户确认。
+
 ## 1. 只处理原生 `.lad`
 
 `.lad` 是二进制记录容器。不要用文本编辑器直接修改，也不要把 `.il`、PDF、
