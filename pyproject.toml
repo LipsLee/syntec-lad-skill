@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "syntec-lad"
+version = "0.1.0"
+description = "Deterministic SDK and Codex skill for Syntec LadEditor .lad files"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+keywords = ["syntec", "ladder", "plc", "lad", "mlcedit", "codex-skill"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: Microsoft :: Windows",
+]
+
+[project.scripts]
+syntec-lad = "syntec_lad.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/LipsLee/syntec-lad-skill"
+Issues = "https://github.com/LipsLee/syntec-lad-skill/issues"
+
+[tool.setuptools.packages.find]
+include = ["syntec_lad*"]
+
+[tool.setuptools.package-data]
+syntec_lad = ["schema/*.json"]

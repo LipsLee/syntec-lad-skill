@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syntec.local/schema/lad-plan.schema.json",
+  "title": "Syntec LadEditor plan v1",
+  "description": "A reviewed, deterministic description of main-program and subprogram ladder networks.",
+  "type": "object",
+  "required": ["schema", "programs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "syntec-lad-plan/v1"
+    },
+    "encoding": {
+      "type": "string",
+      "enum": ["gb2312", "gb18030", "big5"]
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/variable"
+      }
+    },
+    "programs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/program"
+      }
+    }
+  },
+  "$defs": {
+    "variable": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "short": {
+          "type": "string"
+        },
+        "long": {
+          "type": "string"
+        }
+      }
+    },
+    "program": {
+      "type": "object",
+      "required": ["name", "networks"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^MAIN$|^[A-Za-z0-9]{1,6}$"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "networks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/network"
+          }
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "required": ["actions"],
+      "additionalProperties": false,
+      "properties": {
+        "comment": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      }
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["contact"],
+          "additionalProperties": false,
+          "properties": {
+            "contact": {
+              "type": "string",
+              "pattern": "^([IOCSA][0-9]{3}|R[0-9]{4,5}\\.[0-9]{2}|TM[0-9]{3}|CT[0-9]{3})$"
+            },
+            "normally": {
+              "enum": ["open", "closed"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["compare"],
+          "additionalProperties": false,
+          "properties": {
+            "compare": {
+              "type": "object",
+              "required": ["relation", "value", "other"],
+              "additionalProperties": false,
+              "properties": {
+                "relation": {
+                  "enum": [">", "<", "=", "gt", "lt", "eq", "=="]
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^(@?R[0-9]{4,5}|#[+-]?[0-9]{1,6})$"
+                },
+                "other": {
+                  "type": "string",
+                  "pattern": "^(@?R[0-9]{4,5}|#[+-]?[0-9]{1,6})$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["all"],
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/condition"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/condition"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["always"],
+          "additionalProperties": false,
+          "properties": {
+            "always": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["op", "operand"],
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": ["OUT", "OUTI", "PLS", "PLF", "SET", "RST"]
+            },
+            "operand": {
+              "type": "string",
+              "pattern": "^([IOCSA][0-9]{3}|R[0-9]{4,5}\\.[0-9]{2})$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "timer", "preset"],
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "TIM"
+            },
+            "timer": {
+              "type": "string",
+              "pattern": "^TM[0-9]{3}$"
+            },
+            "unit": {
+              "enum": ["1ms", "10ms", "100ms", "1s", "0.001s", "0.01s", "0.1s", "1000ms"]
+            },
+            "preset": {
+              "type": "string",
+              "pattern": "^(@?R[0-9]{4,5}|#[+-]?[0-9]{1,6})$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "counter"],
+          "description": "CNTRESET accepts no preset or only #0. Other counter actions require a preset.",
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": ["CNTUP", "CNTDOWN", "CNTRESET", "CNTRINGUP", "CNTRINGDOWN"]
+            },
+            "counter": {
+              "type": "string",
+              "pattern": "^CT[0-9]{3}$"
+            },
+            "preset": {
+              "type": "string",
+              "pattern": "^(@?R[0-9]{4,5}|#[+-]?[0-9]{1,6})$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "src", "dst"],
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": ["MOV", "ADD", "SUB", "MUL", "DIV", "AND", "OR", "XOR"]
+            },
+            "src": {
+              "type": "string",
+              "pattern": "^(@?R[0-9]{4,5}|#[+-]?[0-9]{1,6})$"
+            },
+            "dst": {
+              "type": "string",
+              "pattern": "^@?R[0-9]{4,5}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "target"],
+          "description": "JMP and JSR targets must name a declared 1-6 character alphanumeric subprogram. MAIN and undeclared local labels are rejected. MSG accepts a 1-6 byte ASCII message identifier.",
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "enum": ["JMP", "JSR", "MSG"]
+            },
+            "target": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,6}$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

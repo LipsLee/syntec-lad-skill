@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syntec.local/schema/lad-change.schema.json",
+  "title": "Syntec LadEditor hash-pinned change v1",
+  "type": "object",
+  "required": ["schema", "base_sha256", "operations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "syntec-lad-change/v1"
+    },
+    "base_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/insertByAnchor"
+          },
+          {
+            "$ref": "#/$defs/insertByRange"
+          },
+          {
+            "$ref": "#/$defs/replace"
+          },
+          {
+            "$ref": "#/$defs/delete"
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{64}$"
+    },
+    "network": {
+      "type": "object",
+      "description": "A network object using the syntec-lad-plan/v1 network shape.",
+      "additionalProperties": true
+    },
+    "insertByAnchor": {
+      "type": "object",
+      "required": ["op", "at_record", "expected_sha256", "networks"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "insert"
+        },
+        "at_record": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "networks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/network"
+          }
+        }
+      }
+    },
+    "insertByRange": {
+      "type": "object",
+      "required": ["op", "record_start", "record_end", "expected_sha256", "networks"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "insert"
+        },
+        "record_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "record_end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "position": {
+          "enum": ["before", "after"]
+        },
+        "expected_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "networks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/network"
+          }
+        }
+      }
+    },
+    "replace": {
+      "type": "object",
+      "required": ["op", "record_start", "record_end", "expected_sha256", "networks"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "replace"
+        },
+        "record_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "record_end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "networks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/network"
+          }
+        }
+      }
+    },
+    "delete": {
+      "type": "object",
+      "required": ["op", "record_start", "record_end", "expected_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "delete"
+        },
+        "record_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "record_end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

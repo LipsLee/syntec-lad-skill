@@ -1,0 +1,144 @@
+{
+  "schema": "syntec-lad-plan/v1",
+  "encoding": "gb2312",
+  "programs": [
+    {
+      "name": "MAIN",
+      "comment": "MVP 演示：全部地址与参数均为占位示例，上机前必须由用户确认",
+      "networks": [
+        {
+          "comment": "启动、停止与自锁",
+          "condition": {
+            "all": [
+              {
+                "contact": "I000"
+              },
+              {
+                "any": [
+                  {
+                    "contact": "I001",
+                    "normally": "closed"
+                  },
+                  {
+                    "contact": "O000"
+                  }
+                ]
+              }
+            ]
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O000"
+            }
+          ]
+        },
+        {
+          "comment": "并联条件",
+          "condition": {
+            "any": [
+              {
+                "contact": "I002"
+              },
+              {
+                "contact": "I003"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O001"
+            }
+          ]
+        },
+        {
+          "comment": "100ms 定时器",
+          "condition": {
+            "contact": "I004"
+          },
+          "actions": [
+            {
+              "op": "TIM",
+              "timer": "TM000",
+              "unit": "100ms",
+              "preset": "#00050"
+            }
+          ]
+        },
+        {
+          "comment": "寄存器比较",
+          "condition": {
+            "compare": {
+              "relation": "=",
+              "value": "R0001",
+              "other": "#00005"
+            }
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O002"
+            }
+          ]
+        },
+        {
+          "comment": "数据传送",
+          "condition": {
+            "always": true
+          },
+          "actions": [
+            {
+              "op": "MOV",
+              "src": "#00010",
+              "dst": "R0001"
+            }
+          ]
+        },
+        {
+          "comment": "计数器",
+          "condition": {
+            "contact": "I005"
+          },
+          "actions": [
+            {
+              "op": "CNTUP",
+              "counter": "CT000",
+              "preset": "#00005"
+            }
+          ]
+        },
+        {
+          "comment": "调用子程序",
+          "condition": {
+            "always": true
+          },
+          "actions": [
+            {
+              "op": "JSR",
+              "target": "SUB1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SUB1",
+      "comment": "普通子程序",
+      "networks": [
+        {
+          "comment": "子程序输出",
+          "condition": {
+            "contact": "I010"
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O010"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.cs text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.ps1 text eol=crlf
+*.lad binary
+*.dll binary
+*.exe binary

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Syntec Ladder SDK"
+  short_description: "Inspect, build, patch, and validate Syntec .lad files"
+  default_prompt: "Use $syntec-lad to inspect this .lad file and prepare a reviewed, validated change."
+
+policy:
+  allow_implicit_invocation: true

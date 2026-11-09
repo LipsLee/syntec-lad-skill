@@ -1,0 +1,87 @@
+{
+  "schema": "syntec-lad-plan/v1",
+  "encoding": "gb2312",
+  "programs": [
+    {
+      "name": "MAIN",
+      "comment": "演示主程序（地址均为示例，使用者需自行确认）",
+      "networks": [
+        {
+          "comment": "启动/自锁：I000 启动，I001 停止，O000 自锁",
+          "condition": {
+            "all": [
+              {
+                "contact": "I000"
+              },
+              {
+                "any": [
+                  {
+                    "contact": "I001",
+                    "normally": "closed"
+                  },
+                  {
+                    "contact": "O000"
+                  }
+                ]
+              }
+            ]
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O000"
+            }
+          ]
+        },
+        {
+          "comment": "100ms 定时器示例",
+          "condition": {
+            "contact": "I002"
+          },
+          "actions": [
+            {
+              "op": "TIM",
+              "timer": "TM000",
+              "unit": "100ms",
+              "preset": "#00050"
+            },
+            {
+              "op": "OUT",
+              "operand": "O001"
+            }
+          ]
+        },
+        {
+          "comment": "子程序调用示例",
+          "condition": {
+            "always": true
+          },
+          "actions": [
+            {
+              "op": "JSR",
+              "target": "SUB1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SUB1",
+      "comment": "演示子程序",
+      "networks": [
+        {
+          "comment": "子程序输出",
+          "condition": {
+            "contact": "I010"
+          },
+          "actions": [
+            {
+              "op": "OUT",
+              "operand": "O010"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
