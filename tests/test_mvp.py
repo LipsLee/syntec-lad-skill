@@ -304,7 +304,7 @@ class MvpCompilerTests(unittest.TestCase):
                 single_plan(
                     {
                         "any": [
-                            {"all": [{"contact": f"I{i:03d}"} for i in range(9)]},
+                            {"all": [{"contact": f"I{i:03d}"} for i in range(10)]},
                             {"contact": "I020"},
                         ]
                     },

@@ -8,3 +8,8 @@ dist/
 native/bin/
 *.bak
 *.tmp
+
+# 本地案件产物与分析输出
+work/
+*.inspect.json
+*.diff.json

@@ -52,12 +52,15 @@ server. See `mcp-config.example.json` and replace the path:
 
 The MCP tools are:
 
-- `inspect_lad`
+- `inspect_lad`（支持 `program` / `network` 过滤）
 - `lookup_address`
 - `build_plan`
 - `patch_lad`
 - `validate_lad`
-- `diff_lad`
+- `diff_lad`（段对齐 + 操作数级差异）
+- `lint_lad`（重复线圈 / S 当线圈 / I/O 复用 / 越界 / 简体注释 / 可合并条件）
+- `lint_plan`（生成前 DNF 合并审计 / 动作母线宽度 / 流程动作）
+- `crosscheck_lad`（参数表、三语、报警位、IO 表四项核对；可用 `delivery` 自动定位）
 - `read_reference`
 - `list_references`
 - `explain_capabilities`
@@ -65,11 +68,12 @@ The MCP tools are:
 ## Agent Skills directories
 
 For an agent that reads the Agent Skills layout but does not use WorkBuddy,
-copy this whole directory into its skill directory. The default Codex location
-is:
+copy this whole directory into its skill directory. Typical locations:
 
 ```text
-~/.codex/skills/syntec-lad/
+~/.codebuddy/skills/syntec-lad/     (CodeBuddy)
+~/.codex/skills/syntec-lad/         (Codex)
+~/.workbuddy/skills/syntec-lad/     (WorkBuddy)
 ```
 
 The same folder can be used from any checkout:
@@ -84,8 +88,10 @@ python .\scripts\run_syntec_lad.py lookup C6
 
 Knowledge lookup, parsing, plan generation, patch preparation, and diffing work
 without LadEditor. Final native validation still requires Windows, a 32-bit
-`LadDLL.dll`, and .NET Framework 4.x (`csc.exe`). Do not describe a file as
-fully validated if only the Python readback ran.
+`LadDLL.dll`, and .NET Framework 4.x (`csc.exe`). Standard C-drive paths are
+checked first; missing installations are located with a bounded search on
+other local fixed drives. Do not describe a file as fully validated if only
+the Python readback ran.
 
 The MCP server never clicks the editor and never uploads to a CNC. `open` is
 not exposed as an MCP tool; human review remains an explicit CLI action.

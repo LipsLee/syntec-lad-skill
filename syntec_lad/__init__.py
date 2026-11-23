@@ -37,6 +37,7 @@ from .patch import (
     apply_change_plan,
     apply_change_plan_file,
 )
+from .plan_lint import condition_signature, lint_plan
 from .remap import (
     CommentRemapChange,
     CommentRemapResult,
@@ -47,7 +48,7 @@ from .remap import (
     remap_variable_comments,
 )
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = [
     "CHANGE_SCHEMA",
@@ -66,6 +67,7 @@ __all__ = [
     "apply_change_plan",
     "apply_change_plan_file",
     "build_plan",
+    "condition_signature",
     "compile_networks",
     "compile_plan",
     "default_address_db_path",
@@ -73,6 +75,7 @@ __all__ = [
     "find_lad_dll",
     "inspect_lad",
     "load_address_db",
+    "lint_plan",
     "lookup_address",
     "open_in_editor",
     "remap_plc_bits",

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .address_db import default_address_db_path, lookup_address
-from .inspection import inspect_lad
+from .inspection import apply_inspection_filter, inspect_lad
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_ROOT = SKILL_ROOT / "references"
@@ -36,6 +36,14 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "default": "auto",
                     "description": "auto, big5, gb2312, or gb18030",
+                },
+                "program": {
+                    "type": "string",
+                    "description": "only report networks inside this program (e.g. MAIN, 7)",
+                },
+                "network": {
+                    "type": "string",
+                    "description": "only report this network candidate (e.g. N0016 or 16)",
                 },
             },
             "required": ["path"],
@@ -130,6 +138,63 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "lint_lad",
+        "description": (
+            "Static rule checks for a .lad: duplicate coils, S used as a coil, "
+            "reused I/O points, out-of-range indices, simplified-Chinese comments."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "lad": {"type": "string"},
+                "io_max_uses": {"type": "integer", "default": 5, "minimum": 1},
+            },
+            "required": ["lad"],
+        },
+    },
+    {
+        "name": "lint_plan",
+        "description": (
+            "Audit a syntec-lad-plan/v1 before building: equivalent adjacent "
+            "conditions that can share one actions array, unconditional "
+            "networks, and mixed 1-cell/2-cell action widths."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "plan": {"type": "string", "description": "path to the plan JSON"},
+            },
+            "required": ["plan"],
+        },
+    },
+    {
+        "name": "crosscheck_lad",
+        "description": (
+            "Cross-check a .lad against paramext.pxt, ParamExt_*.xml, "
+            "AlarmPLC_*.xml and an IO point table. Pass a backup directory via "
+            "delivery to locate all of them automatically."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "lad": {"type": "string", "description": "ladder path; optional with delivery"},
+                "delivery": {
+                    "type": "string",
+                    "description": "MB/SB/package backup directory to auto-discover files",
+                },
+                "pxt": {"type": "string"},
+                "param_xml": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "ParamExt_CHS/CHT/COM.xml; repeat to compare languages",
+                },
+                "alarm_xml": {"type": "string"},
+                "io": {"type": "string", "description": "IO point table (address<TAB>description)"},
+                "context": {"type": "integer", "default": 12, "minimum": 1},
+            },
+        },
+    },
+    {
         "name": "read_reference",
         "description": (
             "Read a bundled knowledge reference by relative path, for example "
@@ -183,10 +248,19 @@ def _run_cli(args: list[str], *, fail_on_error: bool = True) -> dict[str, Any]:
 
 
 def _tool_inspect(args: dict[str, Any]) -> dict[str, Any]:
-    return inspect_lad(
+    result = inspect_lad(
         args["path"],
         encoding=str(args.get("encoding") or "auto"),
     )
+    program = args.get("program")
+    network = args.get("network")
+    if program or network:
+        result, _note = apply_inspection_filter(
+            result,
+            program=program,
+            network=network,
+        )
+    return result
 
 
 def _tool_lookup(args: dict[str, Any]) -> dict[str, Any]:
@@ -239,6 +313,39 @@ def _tool_diff(args: dict[str, Any]) -> dict[str, Any]:
     return _run_cli(command, fail_on_error=False)
 
 
+def _tool_lint(args: dict[str, Any]) -> dict[str, Any]:
+    command = ["lint", str(args["lad"]), "--json"]
+    if args.get("io_max_uses"):
+        command += ["--io-max-uses", str(int(args["io_max_uses"]))]
+    return _run_cli(command, fail_on_error=False)
+
+
+def _tool_lint_plan(args: dict[str, Any]) -> dict[str, Any]:
+    return _run_cli(
+        ["plan-lint", str(args["plan"]), "--json"],
+        fail_on_error=False,
+    )
+
+
+def _tool_crosscheck(args: dict[str, Any]) -> dict[str, Any]:
+    command = ["crosscheck", "--json"]
+    if args.get("lad"):
+        command.append(str(args["lad"]))
+    if args.get("delivery"):
+        command += ["--delivery", str(args["delivery"])]
+    if args.get("pxt"):
+        command += ["--pxt", str(args["pxt"])]
+    for item in args.get("param_xml") or []:
+        command += ["--param-xml", str(item)]
+    if args.get("alarm_xml"):
+        command += ["--alarm-xml", str(args["alarm_xml"])]
+    if args.get("io"):
+        command += ["--io", str(args["io"])]
+    if args.get("context"):
+        command += ["--context", str(int(args["context"]))]
+    return _run_cli(command, fail_on_error=False)
+
+
 def _resolve_reference(name: str) -> Path:
     root = REFERENCE_ROOT.resolve()
     candidate = (root / name).resolve()
@@ -277,8 +384,8 @@ def _tool_explain(_: dict[str, Any]) -> str:
             "2. Read the relevant reference via read_reference.",
             "3. Resolve every missing I/O, register, timer, counter, preset, and interlock value.",
             "4. Create a reviewed syntec-lad-plan/v1 or syntec-lad-change/v1 JSON document.",
-            "5. build_plan or patch_lad to a new output path.",
-            "6. validate_lad and diff_lad.",
+            "5. Run lint_plan, merge equivalent adjacent conditions, then build_plan or patch_lad.",
+            "6. validate_lad, lint_lad, and diff_lad.",
             "",
             "Safety:",
             "- Native .lad is the only writable source format.",
@@ -298,6 +405,9 @@ TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "patch_lad": _tool_patch,
     "validate_lad": _tool_validate,
     "diff_lad": _tool_diff,
+    "lint_lad": _tool_lint,
+    "lint_plan": _tool_lint_plan,
+    "crosscheck_lad": _tool_crosscheck,
     "read_reference": _tool_read_reference,
     "list_references": _tool_list_references,
     "explain_capabilities": _tool_explain,
@@ -321,7 +431,7 @@ def _dispatch(method: str, params: dict[str, Any]) -> Any:
         return {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "syntec-lad", "version": "0.2.2"},
+            "serverInfo": {"name": "syntec-lad", "version": "0.2.3"},
         }
     if method == "ping":
         return {}

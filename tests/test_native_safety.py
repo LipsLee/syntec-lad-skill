@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,14 +9,16 @@ from unittest.mock import patch
 from syntec_lad.compiler import compile_plan
 from syntec_lad.errors import LadValidationError, NativeValidationError
 from syntec_lad.native import (
+    DEFAULT_DLL_CANDIDATES,
+    PROJECT_ROOT,
+    _search_native_files,
     ensure_checker,
     find_lad_dll,
     validate_native,
 )
 
-SAMPLE = Path(
-    r"D:\Toolsyntec\pakeageTool\快速打包工具\DiskC\OpenCNC\Ladder\cnc.lad"
-)
+SAMPLE_ENV = os.environ.get("SYNTEC_LAD_SAMPLE")
+SAMPLE = Path(SAMPLE_ENV) if SAMPLE_ENV else None
 
 
 def small_plan() -> dict:
@@ -36,6 +39,59 @@ def small_plan() -> dict:
 
 
 class NativeSafetyTests(unittest.TestCase):
+    def test_search_finds_install_files_in_nonstandard_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            install = (
+                root
+                / "any-vendor-folder"
+                / "SYNTEC"
+                / "LadEditor_9.9"
+                / "LadEditor"
+            )
+            install.mkdir(parents=True)
+            dll = install / "LadDLL.dll"
+            editor = install / "MLCEdit.exe"
+            dll.write_bytes(b"dll")
+            editor.write_bytes(b"exe")
+
+            found = _search_native_files([root])
+
+        self.assertEqual(found["dll"], dll.resolve())
+        self.assertEqual(found["editor"], editor.resolve())
+
+    def test_search_skips_dependency_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            install = root / "node_modules" / "SYNTEC" / "LadEditor"
+            install.mkdir(parents=True)
+            (install / "LadDLL.dll").write_bytes(b"dll")
+
+            found = _search_native_files([root])
+
+        self.assertEqual(found, {})
+
+    def test_fixed_candidate_wins_without_drive_search(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dll = Path(directory) / "LadDLL.dll"
+            dll.write_bytes(b"dll")
+            with (
+                patch("syntec_lad.native.DEFAULT_DLL_CANDIDATES", (dll,)),
+                patch("syntec_lad.native._discover_native_files") as discover,
+            ):
+                found = find_lad_dll()
+        self.assertEqual(found, dll.resolve())
+        discover.assert_not_called()
+
+    def test_fixed_candidates_do_not_contain_personal_drive_paths(self) -> None:
+        personal = []
+        for path in DEFAULT_DLL_CANDIDATES:
+            if path.drive.casefold() != "d:":
+                continue
+            if not path.is_relative_to(PROJECT_ROOT):
+                personal.append(str(path))
+        self.assertEqual(personal, [])
+
     def test_missing_native_components_raise_clear_errors(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -84,8 +140,12 @@ class NativeSafetyTests(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertEqual(result["error_count"], 0)
 
-    @unittest.skipUnless(SAMPLE.exists(), "real cnc.lad sample is unavailable")
+    @unittest.skipUnless(
+        SAMPLE is not None and SAMPLE.exists(),
+        "real cnc.lad sample is unavailable",
+    )
     def test_native_validation_of_real_sample(self) -> None:
+        assert SAMPLE is not None
         try:
             find_lad_dll()
         except Exception as exc:

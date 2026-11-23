@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-import os
 import unittest
-from pathlib import Path
 
 from syntec_lad.compiler import compile_plan
 from syntec_lad.errors import LadUnsupportedError, LadValidationError
 from syntec_lad.inspection import inspect_document
 from syntec_lad.native import find_lad_dll, validate_document
-
-
-SAMPLE = Path(
-    os.environ.get(
-        "SYNTEC_SAMPLE_LAD",
-        r"D:\Toolsyntec\pakeageTool\快速打包工具\DiskC\OpenCNC\Ladder\cnc.lad",
-    )
-)
 
 
 def plan_with(condition: dict, actions: list[dict]) -> dict:

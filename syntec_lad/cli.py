@@ -115,8 +115,23 @@ def _print_save_metadata(saved: dict[str, Any]) -> None:
         )
 
 
+def _apply_inspection_filter(
+    result: dict[str, Any],
+    program: str | None,
+    network: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    from .inspection import apply_inspection_filter
+
+    return apply_inspection_filter(result, program=program, network=network)
+
+
 def _cmd_inspect(args: argparse.Namespace) -> int:
     result = inspect_lad(args.lad, encoding=args.encoding)
+    result, note = _apply_inspection_filter(
+        result,
+        getattr(args, "program", None),
+        getattr(args, "network", None),
+    )
     output = Path(args.output) if args.output else None
     if output is not None and output.resolve() == Path(args.lad).resolve():
         raise LadValidationError("inspect --output must not overwrite the input ladder")
@@ -124,6 +139,8 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         _write_json(output, result)
     else:
         text = render_inspection(result, preview_rows=args.rows)
+        if note is not None:
+            text = note + "\n\n" + text
         if output is None:
             sys.stdout.write(text)
         else:
@@ -133,24 +150,150 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def _cmd_lookup(args: argparse.Namespace) -> int:
+    from .knowledge import search_knowledge
+
     hits = lookup_address(args.query, limit=args.limit)
+    knowledge = {"query": args.query, "hits": [], "hints": []}
+    if not hits and not args.addresses_only:
+        knowledge = search_knowledge(args.query, limit=args.limit)
     payload = {
         "query": args.query,
         "count": len(hits),
         "hits": hits,
+        "knowledge": knowledge,
     }
     if args.json:
         _write_json(None, payload)
-    elif not hits:
-        print(
-            f"no match for {args.query!r} in the bundled 602-address index; "
-            "see references/panming/address-map.md for the full address model"
-        )
-    else:
+    elif hits:
         for hit in hits:
             descriptions = " | ".join(hit["descriptions"])
             print(f"{hit['address']}  [{hit['type']}]  {descriptions}")
-    return 0 if hits else 1
+    elif knowledge["hits"]:
+        print(
+            f"no address match for {args.query!r}; "
+            "knowledge-base sections mentioning it:"
+        )
+        for item in knowledge["hits"]:
+            print(f"  {item['file']}:{item['line']}  {item['heading']}")
+            if item["excerpt"]:
+                print(f"      {item['excerpt'][:110]}")
+        for hint in knowledge["hints"]:
+            print(f"  hint: {hint}")
+    else:
+        print(
+            f"no match for {args.query!r} in the bundled 602-address index or the "
+            "knowledge base; see references/panming/address-map.md for the full "
+            "address model"
+        )
+    return 0 if (hits or knowledge["hits"]) else 1
+
+
+def _cmd_lint(args: argparse.Namespace) -> int:
+    from .lint import lint_document, render_lint
+
+    document = LadDocument.load(args.lad)
+    result = lint_document(document, io_max_uses=args.io_max_uses)
+    output = Path(args.output) if args.output else None
+    if args.json:
+        _write_json(output, result)
+    else:
+        text = render_lint(result, limit=None if args.limit <= 0 else args.limit)
+        if output is None:
+            sys.stdout.write(text)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text, encoding="utf-8")
+    return 0 if result["ok"] else 1
+
+
+def _cmd_plan_lint(args: argparse.Namespace) -> int:
+    from .plan_lint import lint_plan, render_plan_lint
+
+    path = Path(args.plan)
+    result = lint_plan(_json_load(path), source_path=path.resolve())
+    output = Path(args.output) if args.output else None
+    if args.json:
+        _write_json(output, result)
+    else:
+        text = render_plan_lint(
+            result,
+            limit=None if args.limit <= 0 else args.limit,
+        )
+        if output is None:
+            sys.stdout.write(text)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text, encoding="utf-8")
+    return 0 if result["ok"] else 1
+
+
+def _cmd_crosscheck(args: argparse.Namespace) -> int:
+    from .crosscheck import crosscheck, render_crosscheck
+    from .delivery import resolve_inputs
+
+    inputs = resolve_inputs(
+        lad=args.lad,
+        delivery=args.delivery,
+        pxt=args.pxt,
+        param_xml=args.param_xml,
+        alarm_xml=args.alarm_xml,
+        io=args.io,
+    )
+    result = crosscheck(
+        Path(inputs["lad"]),
+        pxt_path=Path(inputs["pxt"]) if inputs["pxt"] else None,
+        param_xml_paths=[Path(item) for item in inputs["param_xml"]],
+        alarm_xml_path=Path(inputs["alarm_xml"]) if inputs["alarm_xml"] else None,
+        io_path=Path(inputs["io"]) if inputs["io"] else None,
+    )
+    if inputs["delivery"]:
+        result["delivery"] = {
+            "root": inputs["delivery"]["root"],
+            "layout": inputs["delivery"]["layout"],
+        }
+    output = Path(args.output) if args.output else None
+    if args.json:
+        _write_json(output, result)
+    else:
+        text = render_crosscheck(result, context=args.context)
+        if output is None:
+            sys.stdout.write(text)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text, encoding="utf-8")
+    return 0 if result["ok"] else 1
+
+
+def _cmd_discover(args: argparse.Namespace) -> int:
+    from .delivery import discover, render_discovery
+
+    result = discover(args.path)
+    if args.json:
+        _write_json(None, result)
+    else:
+        sys.stdout.write(render_discovery(result))
+    return 0 if result["files"].get("lad") else 1
+
+
+def _cmd_zhconv(args: argparse.Namespace) -> int:
+    from .zhconv import find_simplified, to_simplified, to_traditional
+
+    text = args.text
+    if text == "-":
+        text = sys.stdin.read()
+    converted = to_simplified(text) if args.to_simplified else to_traditional(text)
+    payload = {
+        "direction": "simplified" if args.to_simplified else "traditional",
+        "input": text,
+        "output": converted,
+        "changed": converted != text,
+        "simplified_found": find_simplified(text),
+    }
+    if args.json:
+        _write_json(None, payload)
+    else:
+        print(converted)
+    return 0
 
 
 def _cmd_build(args: argparse.Namespace) -> int:
@@ -389,69 +532,15 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_diff(args: argparse.Namespace) -> int:
+    from .lad_diff import diff_documents, render_diff
+
     left = LadDocument.load(args.left)
     right = LadDocument.load(args.right)
-    left_records = left.records
-    right_records = right.records
-    differences: list[dict[str, Any]] = []
-    limit = max(len(left_records), len(right_records))
-    for index in range(limit):
-        a = left_records[index] if index < len(left_records) else None
-        b = right_records[index] if index < len(right_records) else None
-        if a != b:
-            differences.append(
-                {
-                    "record": index,
-                    "left": a.hex(" ").upper() if a is not None else None,
-                    "right": b.hex(" ").upper() if b is not None else None,
-                }
-            )
-    changed_cells: list[dict[str, Any]] = []
-    for difference in differences[:args.context]:
-        index = difference["record"]
-        if index >= len(left_records) or index >= len(right_records):
-            continue
-        a = left_records[index]
-        b = right_records[index]
-        for offset in range(0, 40, 4):
-            if a[offset:offset + 4] != b[offset:offset + 4]:
-                changed_cells.append(
-                    {
-                        "record": index,
-                        "column": offset // 4,
-                        "left": a[offset:offset + 4].hex(" ").upper(),
-                        "right": b[offset:offset + 4].hex(" ").upper(),
-                    }
-                )
-    result = {
-        "left": str(Path(args.left).resolve()),
-        "right": str(Path(args.right).resolve()),
-        "same": left.to_bytes() == right.to_bytes(),
-        "left_sha256": left.sha256,
-        "right_sha256": right.sha256,
-        "left_records": len(left_records),
-        "right_records": len(right_records),
-        "different_records": len(differences),
-        "differences": differences,
-        "changed_cells": changed_cells,
-    }
+    result = diff_documents(left, right, context=args.context)
     if args.json:
         _write_json(None, result)
     else:
-        print(f"left  : {result['left']}")
-        print(f"right : {result['right']}")
-        print(f"same  : {result['same']}")
-        print(
-            f"records: {result['left_records']} -> {result['right_records']}, "
-            f"{result['different_records']} changed/added/removed record positions"
-        )
-        if differences:
-            print("first differences:")
-            for difference in differences[:args.context]:
-                print(
-                    f"  r{difference['record']:04d} left={difference['left']} "
-                    f"right={difference['right']}"
-                )
+        sys.stdout.write(render_diff(result, context=args.context))
     return 0 if result["same"] else 1
 
 
@@ -485,7 +574,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="syntec-lad",
         description="Read, generate, patch, and validate Syntec MLCEdit .lad files.",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s 0.2.2")
+    parser.add_argument("--version", action="version", version="%(prog)s 0.2.3")
     sub = parser.add_subparsers(dest="command", required=True)
 
     lookup = sub.add_parser(
@@ -495,7 +584,88 @@ def build_parser() -> argparse.ArgumentParser:
     lookup.add_argument("query", help="address (C6/C006, R600.1) or keyword")
     lookup.add_argument("--json", action="store_true", help="emit JSON")
     lookup.add_argument("--limit", type=int, default=20, help="maximum keyword hits")
+    lookup.add_argument(
+        "--addresses-only",
+        action="store_true",
+        help="do not fall back to the knowledge base when no address matches",
+    )
     lookup.set_defaults(func=_cmd_lookup)
+
+    lint = sub.add_parser(
+        "lint",
+        help="static rule checks: duplicate coils, S as coil, reused I/O, ranges, comments",
+    )
+    lint.add_argument("lad")
+    lint.add_argument("--json", action="store_true", help="emit JSON")
+    lint.add_argument("--output", help="write the report to this file")
+    lint.add_argument("--limit", type=int, default=40, help="max issues to print (0 = all)")
+    lint.add_argument(
+        "--io-max-uses",
+        type=int,
+        default=5,
+        help="warn when one I/O point is used in this many networks (default 5)",
+    )
+    lint.set_defaults(func=_cmd_lint)
+
+    plan_lint = sub.add_parser(
+        "plan-lint",
+        help="audit a plan for equivalent adjacent conditions and mixed action widths",
+    )
+    plan_lint.add_argument("plan")
+    plan_lint.add_argument("--json", action="store_true", help="emit JSON")
+    plan_lint.add_argument("--output", help="write the report to this file")
+    plan_lint.add_argument(
+        "--limit",
+        type=int,
+        default=40,
+        help="max issues to print (0 = all)",
+    )
+    plan_lint.set_defaults(func=_cmd_plan_lint)
+
+    cross = sub.add_parser(
+        "crosscheck",
+        help="check .lad against paramext.pxt, ParamExt_*.xml, AlarmPLC_*.xml and an IO table",
+    )
+    cross.add_argument("lad", nargs="?", help=".lad file; omit when --delivery is given")
+    cross.add_argument(
+        "--delivery",
+        help="MB/SB/package backup directory; ladder, pxt, XML and IO map are discovered automatically",
+    )
+    cross.add_argument("--pxt", help="paramext.pxt defining which extended parameters exist")
+    cross.add_argument(
+        "--param-xml",
+        action="append",
+        default=[],
+        metavar="XML",
+        help="ParamExt_CHS/CHT/COM.xml; repeat to compare languages",
+    )
+    cross.add_argument("--alarm-xml", help="AlarmPLC_*.xml with the alarm bit text")
+    cross.add_argument("--io", help="IO table (.dat/.csv/.txt, address<TAB>description)")
+    cross.add_argument("--json", action="store_true", help="emit JSON")
+    cross.add_argument("--output", help="write the report to this file")
+    cross.add_argument("--context", type=int, default=12, help="max items per section")
+    cross.set_defaults(func=_cmd_crosscheck)
+
+    discover = sub.add_parser(
+        "discover",
+        help="report which ladder/parameter/alarm files a backup directory contains",
+    )
+    discover.add_argument("path", help="MB/SB/package backup directory or a single .lad file")
+    discover.add_argument("--json", action="store_true", help="emit JSON")
+    discover.set_defaults(func=_cmd_discover)
+
+    zhconv = sub.add_parser(
+        "zhconv",
+        help="convert comment text between simplified and traditional Chinese",
+    )
+    zhconv.add_argument("text", help="text to convert, or - to read stdin")
+    zhconv.add_argument(
+        "--to-simplified",
+        action="store_true",
+        help="convert traditional to simplified (default: simplified to traditional)",
+    )
+    zhconv.add_argument("--json", action="store_true", help="emit JSON with per-character hits")
+    zhconv.set_defaults(func=_cmd_zhconv)
 
     inspect = sub.add_parser("inspect", help="show programs, comments, records, and network candidates")
     inspect.add_argument("lad")
@@ -503,6 +673,14 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--json", action="store_true", help="emit full JSON")
     inspect.add_argument("--output", help="write output to this file")
     inspect.add_argument("--rows", type=int, default=0, help="also show this many preview rows")
+    inspect.add_argument(
+        "--program",
+        help="only report networks inside this program (e.g. MAIN, 7)",
+    )
+    inspect.add_argument(
+        "--network",
+        help="only report this network candidate (e.g. N0016 or 16)",
+    )
     inspect.set_defaults(func=_cmd_inspect)
 
     build = sub.add_parser("build", help="compile a reviewed plan from scratch")
@@ -565,7 +743,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_native_options(validate)
     validate.set_defaults(func=_cmd_validate)
 
-    diff = sub.add_parser("diff", help="compare two .lad files at record and cell granularity")
+    diff = sub.add_parser(
+        "diff",
+        help="compare two .lad files aligned by comment/network segments",
+    )
     diff.add_argument("left")
     diff.add_argument("right")
     diff.add_argument("--json", action="store_true")

@@ -62,7 +62,9 @@ internal static class LadSyntaxCheck
             SyntaxCheckDelegate syntaxCheck = GetDelegate<SyntaxCheckDelegate>(module, 121);
             IntGetter errorCount = GetDelegate<IntGetter>(module, 102);
             IntGetter errorLine = GetDelegate<IntGetter>(module, 100);
-            IntGetter errorType = GetDelegate<IntGetter>(module, 124);
+            // #124 (GetSyntaxErrType) is report-only and absent on some LadDLL builds;
+            // make it optional so the syntax gate still runs.
+            IntGetter errorType = TryGetDelegate<IntGetter>(module, 124);
             IntGetter getPrivateKey = GetDelegate<IntGetter>(module, 104);
             SetIntDelegate setPrivateKey = GetDelegate<SetIntDelegate>(module, 105);
 
@@ -75,7 +77,7 @@ internal static class LadSyntaxCheck
             int syntaxResult = syntaxCheck(buffer);
             int count = errorCount();
             int line = errorLine();
-            int type = errorType();
+            int type = errorType != null ? errorType() : -1;
 
             Console.WriteLine("syntax_ret=" + syntaxResult);
             Console.WriteLine("error_count=" + count);
@@ -108,6 +110,16 @@ internal static class LadSyntaxCheck
         {
             throw new InvalidOperationException(
                 "ordinal #" + ordinal + " was not exported by LadDLL.dll");
+        }
+        return (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
+    }
+
+    private static T TryGetDelegate<T>(IntPtr module, int ordinal) where T : class
+    {
+        IntPtr address = GetProcAddress(module, new IntPtr(ordinal));
+        if (address == IntPtr.Zero)
+        {
+            return null;
         }
         return (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
     }

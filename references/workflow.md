@@ -69,6 +69,37 @@ python .\tools\lad_parser.py .\source.lad --no-write
 字母或数字。每个 network 必须包含 `actions`，可选 `condition` 和
 `comment`。
 
+`layout` 可写在计划顶层或 network 上：
+
+- `auto`（默认）：直接按原始 `all`/`any` 树排布。`all` 从左到右串联，
+  `any` 上下并联并在左右画母线；嵌套并联块共用公共前缀/后缀，尾部串联
+  只写一次。例如
+  `A040 ∧ (A012∨A013) ∧ (S069∨R075.00) ∧ A031 ∧ A051 ∧ R044.05`
+  生成 2 行，而不是展开成 4 行重复公共条件。
+- 外层 OR 同样按树排布。例如
+  `(A040 ∧ (A012∨A013) ∧ (S069∨R075.00) ∧ ¬A031) ∨ (A043 ∧ ¬A044)`，
+  再串联 `A051 ∧ ¬R044.05`，生成 3 行而不是 5 行；`A043/¬A044` 从下方
+  并入 `A051` 前的母线。
+- `expanded`：早期的“一个 DNF 项一行”布局，用于对照或回退。
+
+- 同一条件驱动多个动作时，全部写进同一个 network 的 `actions` 数组：
+  生成器只画一次条件，并在动作列前加一条竖直母线，各动作上下并联；
+  不会为了每个线圈把整组条件重复一遍。`lint` 会对相邻且条件完全相同的
+  网络给出 `mergeable_condition` 警告。
+- 生成前先跑 `plan-lint`。它把条件规范化成 DNF 后比较，所以触点顺序不同、
+  `A∧(B∨C)` 与 `(A∧B)∨(A∧C)` 这类展开写法不同、以及两个相邻的无条件
+  网络，都会被识别为可合并。1 格线圈与 2 格定时器/计数器/流程指令可以
+  共用一条动作母线：母线在第 8 列，线圈前保留第 8 列 LINE。只有条件本身
+  已经占满第 8 列时才会报 `mergeable_condition_too_wide` /
+  `mixed_action_too_wide`，此时缩短串联条件或保留多个 network。
+  `JMP`/`JSR`/`MSG` 不能与其它动作共用母线，`plan-lint` 会报
+  `flow_action_not_mergeable`。
+- 只有部分条件相同时，不要擅自新增中间继电器；保持多个 network，或使用
+  用户确认过的 A 区中间标志。
+
+两种模式逻辑等价；`auto` 的回落顺序是树形布局 → 笛卡尔积因式分解 →
+`expanded`。
+
 支持的条件形态：
 
 - `{"contact": "I000"}`：常开触点
@@ -97,6 +128,7 @@ python .\tools\lad_parser.py .\source.lad --no-write
 生成并校验：
 
 ```powershell
+python $LadCli plan-lint .\plan.json
 python $LadCli build .\plan.json .\generated.lad
 ```
 

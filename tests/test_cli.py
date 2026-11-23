@@ -31,6 +31,46 @@ def run_cli(*args: object, timeout: int = 60) -> subprocess.CompletedProcess[str
 
 
 class CliTests(unittest.TestCase):
+    def test_plan_lint_command(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            plan = Path(directory) / "plan.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "schema": "syntec-lad-plan/v1",
+                        "programs": [
+                            {
+                                "name": "MAIN",
+                                "networks": [
+                                    {
+                                        "condition": {"contact": "I000"},
+                                        "actions": [
+                                            {"op": "OUT", "operand": "O001"}
+                                        ],
+                                    },
+                                    {
+                                        "condition": {"contact": "I000"},
+                                        "actions": [
+                                            {"op": "OUT", "operand": "O002"}
+                                        ],
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            result = run_cli("plan-lint", plan)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("mergeable_condition", result.stdout)
+
+            as_json = run_cli("plan-lint", plan, "--json")
+            self.assertEqual(as_json.returncode, 0, as_json.stderr)
+            report = json.loads(as_json.stdout)
+            self.assertEqual(report["summary"]["warning"], 1)
+
     def test_lookup_command(self) -> None:
         found = run_cli("lookup", "C6")
         self.assertEqual(found.returncode, 0, found.stderr)
@@ -41,9 +81,13 @@ class CliTests(unittest.TestCase):
         report = json.loads(padded.stdout)
         self.assertEqual(report["hits"][0]["address"], "C6")
 
-        missing = run_cli("lookup", "R99999")
+        missing = run_cli("lookup", "R99999", "--addresses-only")
         self.assertEqual(missing.returncode, 1)
         self.assertIn("no match", missing.stdout)
+
+        knowledge = run_cli("lookup", "润滑", "--limit", "3")
+        self.assertEqual(knowledge.returncode, 0, knowledge.stderr)
+        self.assertIn("knowledge-base", knowledge.stdout)
 
     def test_build_inspect_validate_diff_and_in_place(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -177,8 +221,8 @@ class CliTests(unittest.TestCase):
             self.assertIn("parser readback: PASS", remapped.stdout)
             self.assertTrue(output.is_file())
             report = json.loads(report_path.read_text(encoding="utf-8"))
-            self.assertEqual(report["changed_operands"], 6)
-            self.assertEqual(report["changed_records"], 5)
+            self.assertEqual(report["changed_operands"], 4)
+            self.assertEqual(report["changed_records"], 3)
             self.assertEqual(report["unmatched_sources"], [])
 
             inspected = run_cli("inspect", output, "--json")

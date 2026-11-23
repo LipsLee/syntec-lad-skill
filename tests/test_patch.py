@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 
@@ -8,17 +9,40 @@ from syntec_lad.errors import LadPatchError
 from syntec_lad.inspection import inspect_document
 from syntec_lad.model import LadDocument
 from syntec_lad.native import find_lad_dll, validate_document
+from syntec_lad.opcodes import STRUCTURAL_OPCODES
 from syntec_lad.patch import CHANGE_SCHEMA, apply_change_plan
 
 
-SAMPLE = Path(r"D:\Toolsyntec\pakeageTool\快速打包工具\DiskC\OpenCNC\Ladder\cnc.lad")
+SAMPLE_ENV = os.environ.get("SYNTEC_LAD_SAMPLE") or os.environ.get("SYNTEC_SAMPLE_LAD")
+SAMPLE = Path(SAMPLE_ENV) if SAMPLE_ENV else None
 
 
-@unittest.skipUnless(SAMPLE.exists(), "real cnc.lad sample is unavailable")
+@unittest.skipUnless(
+    SAMPLE is not None and SAMPLE.is_file(),
+    "real cnc.lad sample is unavailable",
+)
 class PatchTests(unittest.TestCase):
     def setUp(self) -> None:
+        assert SAMPLE is not None
         self.document = LadDocument.load(SAMPLE)
         self.inspection = inspect_document(self.document)
+
+    def _first_candidate(self) -> dict:
+        return self.inspection["network_candidates"][0]
+
+    def _multi_row_candidate(self) -> dict:
+        return next(
+            candidate
+            for candidate in self.inspection["network_candidates"]
+            if candidate["record_count"] >= 2
+        )
+
+    def _structural_record(self) -> int:
+        return next(
+            index
+            for index, record in enumerate(self.document.records)
+            if record[1] in STRUCTURAL_OPCODES
+        )
 
     def _change(self, operation: dict) -> dict:
         return {
@@ -45,9 +69,21 @@ class PatchTests(unittest.TestCase):
                 }
             ),
         )
+        replacement_records = compile_networks(
+            [network],
+            encoding=self.document.encoding,
+        )
+        start = candidate["record_start"]
+        end = candidate["record_end"]
+        offset = len(replacement_records) - (end - start + 1)
+        self.assertEqual(result.records[:start], self.document.records[:start])
         self.assertEqual(
-            result.records[1:],
-            self.document.records[1:],
+            result.records[start + len(replacement_records) :],
+            self.document.records[end + 1 :],
+        )
+        self.assertEqual(
+            len(result.records),
+            len(self.document.records) + offset,
         )
         try:
             find_lad_dll()
@@ -57,6 +93,7 @@ class PatchTests(unittest.TestCase):
 
     def test_stale_and_structural_targets_are_rejected(self) -> None:
         candidate = self.inspection["network_candidates"][0]
+        structural_record = self._structural_record()
         stale_base = self._change(
             {
                 "op": "delete",
@@ -83,9 +120,11 @@ class PatchTests(unittest.TestCase):
         structural = self._change(
             {
                 "op": "delete",
-                "record_start": 193,
-                "record_end": 193,
-                "expected_sha256": self.document.expected_hash(193, 193),
+                "record_start": structural_record,
+                "record_end": structural_record,
+                "expected_sha256": self.document.expected_hash(
+                    structural_record, structural_record
+                ),
             }
         )
         with self.assertRaises(LadPatchError):
@@ -116,20 +155,22 @@ class PatchTests(unittest.TestCase):
             "condition": {"contact": "I010"},
             "actions": [{"op": "OUT", "operand": "O010"}],
         }
+        candidate = self._first_candidate()
+        anchor = candidate["record_start"]
         change = self._change(
             {
                 "op": "replace",
-                "record_start": 0,
-                "record_end": 0,
-                "expected_sha256": self.document.expected_hash(0, 0),
+                "record_start": candidate["record_start"],
+                "record_end": candidate["record_end"],
+                "expected_sha256": candidate["sha256"],
                 "networks": [network],
             }
         )
         change["operations"].append(
             {
                 "op": "insert",
-                "at_record": 0,
-                "expected_sha256": self.document.expected_hash(0, 0),
+                "at_record": anchor,
+                "expected_sha256": self.document.expected_hash(anchor, anchor),
                 "networks": [inserted_network],
             }
         )
@@ -143,22 +184,30 @@ class PatchTests(unittest.TestCase):
             [network],
             encoding=self.document.encoding,
         )
-        self.assertEqual(result.records[:len(inserted_records)], inserted_records)
-        replaced_end = len(inserted_records) + len(replacement_records)
+        self.assertEqual(result.records[:anchor], self.document.records[:anchor])
+        head = anchor + len(inserted_records)
         self.assertEqual(
-            result.records[len(inserted_records):replaced_end],
+            result.records[anchor:head],
+            inserted_records,
+        )
+        replaced_end = head + len(replacement_records)
+        self.assertEqual(
+            result.records[head:replaced_end],
             replacement_records,
         )
         self.assertEqual(
             result.records[replaced_end:],
-            self.document.records[1:],
+            self.document.records[candidate["record_end"] + 1 :],
         )
 
     def test_cross_rung_boundary_is_rejected(self) -> None:
-        # This row is part of a vertically connected branch in cnc.lad.
+        # Deleting a single row out of a multi-row network must be rejected:
+        # the network's rows are vertically connected, so removing one leaves
+        # a dangling half of the rung.
         document = self.document
-        start = 19
-        end = 19
+        candidate = self._multi_row_candidate()
+        start = candidate["record_start"] + 1
+        end = start
         change = self._change(
             {
                 "op": "delete",
@@ -176,20 +225,27 @@ class PatchTests(unittest.TestCase):
             "condition": {"contact": "I010"},
             "actions": [{"op": "OUT", "operand": "O010"}],
         }
+        anchor = candidate["record_start"]
         inserted = apply_change_plan(
             self.document,
             self._change(
                 {
                     "op": "insert",
-                    "at_record": 1,
-                    "expected_sha256": self.document.expected_hash(1, 1),
+                    "at_record": anchor,
+                    "expected_sha256": self.document.expected_hash(anchor, anchor),
                     "networks": [network],
                 }
             ),
         )
-        self.assertEqual(len(inserted.records), len(self.document.records) + 1)
-        self.assertEqual(inserted.records[0], self.document.records[0])
-        self.assertEqual(inserted.records[2:], self.document.records[1:])
+        inserted_records = compile_networks(
+            [network],
+            encoding=self.document.encoding,
+        )
+        offset = len(inserted_records)
+        self.assertEqual(len(inserted.records), len(self.document.records) + offset)
+        self.assertEqual(inserted.records[:anchor], self.document.records[:anchor])
+        self.assertEqual(inserted.records[anchor : anchor + offset], inserted_records)
+        self.assertEqual(inserted.records[anchor + offset :], self.document.records[anchor:])
         deleted = apply_change_plan(
             self.document,
             self._change(
@@ -201,9 +257,12 @@ class PatchTests(unittest.TestCase):
                 }
             ),
         )
-        self.assertEqual(len(deleted.records), len(self.document.records) - 1)
         start = candidate["record_start"]
         end = candidate["record_end"]
+        self.assertEqual(
+            len(deleted.records),
+            len(self.document.records) - (end - start + 1),
+        )
         self.assertEqual(deleted.records[:start], self.document.records[:start])
         self.assertEqual(deleted.records[start:], self.document.records[end + 1:])
         try:

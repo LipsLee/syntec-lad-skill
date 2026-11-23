@@ -1,6 +1,6 @@
 ---
 name: syntec-lad
-description: Inspect, generate, patch, remap, diff, and natively validate native Syntec MLCEdit/LadEditor .lad ladder files using deterministic JSON plans and hash-pinned changes. Includes an engineering knowledge library for SYNTEC PLC ladder design, including 8 element classes, C/S/R address map, 602-address index, 12 process patterns, lubrication/hydraulic/chip-conveyor/tool-magazine/M-code function library, field conventions, comment encoding, and anti-patterns. Use for 新代/SYNTEC PLC 梯形图, .lad, ladder, I/O 点位表, 润滑/液压/排屑/刀库/M 码/报警/互锁 work; do not use for .il/PDF/screenshot conversion, GUI click automation, or CNC upload.
+description: Inspect, lint, generate, patch, remap, diff, and natively validate native Syntec MLCEdit/LadEditor .lad ladder files using deterministic JSON plans and hash-pinned changes; cross-check a delivery against paramext.pxt, ParamExt_CHS/CHT/COM.xml, AlarmPLC_*.xml and an IO point table, and auto-discover MB/SB/package backup layouts. Includes an engineering knowledge library for SYNTEC PLC ladder design, including 8 element classes, C/S/R address map, 602-address index, 12 process patterns, lubrication/hydraulic/chip-conveyor/tool-magazine/M-code function library, field conventions, comment encoding, and anti-patterns. Use for 新代/SYNTEC PLC 梯形图, .lad, MB/SB 备份, ladder, I/O 点位表, 参数表核对, 报警文案核对, 润滑/液压/排屑/刀库/M 码/报警/互锁 work; do not use for .il/PDF/screenshot conversion, GUI click automation, or CNC upload.
 metadata:
   short-description: Edit, validate, and design Syntec .lad ladder logic safely
 ---
@@ -43,10 +43,15 @@ interlock relationship.
 
 ## Run the bundled CLI
 
-For the default Codex skill installation:
+Set `$SkillRoot` to the skill directory of the host agent:
 
 ```powershell
-$SkillRoot = Join-Path $HOME '.codex\skills\syntec-lad'
+# CodeBuddy
+$SkillRoot = Join-Path $HOME '.codebuddy\skills\syntec-lad'
+# Codex
+# $SkillRoot = Join-Path $HOME '.codex\skills\syntec-lad'
+# WorkBuddy
+# $SkillRoot = Join-Path $HOME '.workbuddy\skills\syntec-lad'
 $LadCli = Join-Path $SkillRoot 'scripts\run_syntec_lad.py'
 python $LadCli --version
 ```
@@ -65,6 +70,10 @@ supports:
   `~/.workbuddy/skills/syntec-lad/` and merges the MCP entry into
   `~/.workbuddy/mcp.json`. Restart WorkBuddy, confirm `syntec-lad` under
   MCP Servers, and approve it if prompted.
+- **CodeBuddy:** copy this whole directory into
+  `~/.codebuddy/skills/syntec-lad/` (keep `SKILL.md` and `references/`).
+  Agents with shell access run `scripts/run_syntec_lad.py` directly; no MCP
+  registration is required.
 - **MCP clients:** register `scripts/syntec_lad_mcp.py` using
   `mcp-config.example.json`. No Python package installation is required.
 - **Agents with shell access:** run `scripts/run_syntec_lad.py` directly.
@@ -113,10 +122,37 @@ The MCP adapter exposes `inspect_lad`, `lookup_address`, `build_plan`,
    - New file: `syntec-lad-plan/v1`
    - Existing file: `syntec-lad-change/v1` with `base_sha256` and the exact
      `expected_sha256` of every target record range.
+   - Leave `layout` at `auto` unless the user asks for the old expanded form.
+     `auto` lays out the original `all`/`any` tree directly: `all` places its
+     children in series and top-aligned, while every `any` gets a vertical bus
+     on its left and right edges. Nested parallel blocks therefore share their
+     prefix/suffix instead of repeating it, and an outer OR with nested 2×2
+     groups can stay compact (the A43 tool-change network is 3 rows, not 5).
+     `expanded` keeps one DNF term per row. Both modes are logically
+     equivalent and must pass the same validation gates.
+   - When several outputs share exactly the same condition, put them in
+     **one** network's `actions` array. The compiler draws that condition
+     once and stacks the actions on parallel rows behind a single vertical
+     bus; it no longer repeats the condition per coil. Split networks only
+     when the conditions really differ. If actions share only a prefix, do
+     not invent an intermediate `A` relay: keep separate networks unless the
+     user supplies a reviewed scratch address.
+   - Before building, run `plan-lint` on the JSON document. It compares
+     conditions after DNF normalization, so `A∧(B∨C)` and `(A∧B)∨(A∧C)`, or
+     the same contacts written in a different order, are reported as one
+     mergeable condition. Adjacent unconditional networks are reported too.
+     One-cell coils and 2-cell timers/counters/flow actions can share the
+     same network: the bus sits at column 8 and each coil gets the usual LINE
+     at column 8. Only a condition that itself fills column 8 is reported as
+     `mergeable_condition_too_wide`/`mixed_action_too_wide`; shorten the
+     series string or keep those networks separate. `JMP`/`JSR`/`MSG` are
+     flow actions and must stay in their own rows; `plan-lint` reports them as
+     `flow_action_not_mergeable`.
 
 6. **Generate a new output by default.**
 
    ```powershell
+   python $LadCli plan-lint .\plan.json
    python $LadCli build .\plan.json .\generated.lad
    python $LadCli patch .\source.lad .\change.json .\patched.lad
    ```
@@ -271,8 +307,14 @@ The full anti-pattern list is in
 
 ```powershell
 python $LadCli inspect .\file.lad
+python $LadCli inspect .\file.lad --program 7        # one subprogram only
+python $LadCli inspect .\file.lad --network N0016    # one network candidate
+python $LadCli discover "D:\path\to\MB_or_SB_backup"  # where are the files?
+python $LadCli lint .\file.lad                       # static rule checks
+python $LadCli crosscheck --delivery "D:\path\to\backup"
 python $LadCli lookup C6
-python $LadCli lookup "M码"
+python $LadCli lookup "润滑"                          # falls back to the knowledge base
+python $LadCli zhconv "主轴润滑压力不足"              # simplified -> traditional
 python $LadCli build .\plan.json .\new.lad
 python $LadCli patch .\source.lad .\change.json .\patched.lad
 python $LadCli remap .\source.lad .\mapped.lad --mapping-file .\mapping.json --expected-sha256 <sha256>
@@ -282,7 +324,42 @@ python $LadCli open .\file.lad
 ```
 
 `lookup` searches the bundled 602-address C/S/R index by exact address or
-keyword. It does not replace `inspect` or a reviewed point table.
+keyword; when nothing matches it falls back to full-text search of
+`references/`, so工艺词（润滑、刀库、安全门）也能定位到章节。It does not replace
+`inspect` or a reviewed point table.
+
+## Delivery discovery
+
+A machine backup has a fixed shape: MB backups keep everything at the root
+(`Ladder/cnc.lad`, `ParameterExt/paramext.pxt`), while SB backups mirror the C
+drive (`DiskC/OpenCNC/Ladder/CNC.LAD`, `DiskC/OpenCNC/Res/paramext.pxt`,
+`DiskC/OCRes/<lang>/String/ParamExt_<lang>.Xml`). `discover` reports what a
+directory contains; `crosscheck --delivery` uses the same detection to fill in
+`--pxt`, `--param-xml`, `--alarm-xml` and `--io` automatically.
+
+When only a single `.lad` was copied out of the machine, pass the file path
+directly and give the companion files explicitly. See
+`references/delivery-layout.md` for the full path tables and the pitfalls
+(`IoMap_Customer.xml` is a port map, not a point table; `ParamExt_RBit_*.xml`
+is a different parameter set).
+
+## Cross-file checks
+
+`crosscheck` answers the four questions that otherwise need hand-written
+scripts for every delivery:
+
+1. **parameter ↔ ladder** — parameters that exist in `paramext.pxt` but are
+   never read by the ladder (or the reverse);
+2. **language ↔ language** — live `ParamExt_CHS/CHT/COM.xml` entry differences,
+   with commented-out entries excluded;
+3. **alarm bit ↔ text** — bits the ladder writes that have no `AlarmPLC_*.xml`
+   entry (R44~R49 are alarms, R590/R591 are hints);
+4. **IO table ↔ ladder** — points that only exist on one side.
+
+`lint` covers the anti-patterns that the parser cannot reject: duplicate
+coils, `S` used as a coil, one I/O point reused across many networks,
+out-of-range indices, and simplified-Chinese comments that would render as
+question marks under cp950.
 
 ## Knowledge routing
 
@@ -299,10 +376,14 @@ keyword. It does not replace `inspect` or a reviewed point table.
 | R512~R1023 permissions | `references/panming/R512-R1023-权限表.md` |
 | Full opcode/format appendix | `references/panming/TECHNICAL.md` |
 | Native plan/change workflow | `references/workflow.md` |
+| MB/SB/package 备份的固定目录结构 | `references/delivery-layout.md` |
 
 ## Native setup
 
-Set these when LadEditor is not in a known location:
+The SDK first checks standard C-drive install paths and bundled native folders.
+If they are absent, it performs a bounded search on other local fixed drives
+for `LadDLL.dll` / `MLCEdit.exe` and caches discovered paths under
+`%LOCALAPPDATA%\syntec-lad\`. Set these only to force a specific installation:
 
 ```powershell
 $env:SYNTEC_LAD_DLL = 'C:\path\to\LadEditor\LadDLL.dll'

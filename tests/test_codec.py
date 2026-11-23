@@ -18,18 +18,15 @@ from syntec_lad.opcodes import (
 )
 
 
-SAMPLE = Path(
-    os.environ.get(
-        "SYNTEC_SAMPLE_LAD",
-        r"D:\Toolsyntec\pakeageTool\快速打包工具\DiskC\OpenCNC\Ladder\cnc.lad",
-    )
-)
+SAMPLE_ENV = os.environ.get("SYNTEC_SAMPLE_LAD") or os.environ.get("SYNTEC_LAD_SAMPLE")
+SAMPLE = Path(SAMPLE_ENV) if SAMPLE_ENV else None
 
 
 class CodecTests(unittest.TestCase):
     def test_real_file_round_trip(self) -> None:
-        if not SAMPLE.exists():
+        if SAMPLE is None or not SAMPLE.is_file():
             self.skipTest("real cnc.lad sample is unavailable")
+        assert SAMPLE is not None
         data = SAMPLE.read_bytes()
         document = LadDocument.load(SAMPLE)
         self.assertEqual(document.to_bytes(), data)

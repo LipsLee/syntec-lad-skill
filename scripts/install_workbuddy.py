@@ -40,6 +40,13 @@ IGNORE = shutil.ignore_patterns(
 )
 
 
+def _copy_ignore(directory: str, names: list[str]) -> set[str]:
+    ignored = set(IGNORE(directory, names))
+    if Path(directory).name == "native" and "bin" in names:
+        ignored.add("bin")
+    return ignored
+
+
 def _stamp() -> str:
     return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -138,7 +145,7 @@ def _install_skill(skill_dir: Path) -> None:
     backup = _backup(skill_dir, _skill_backup_root(skill_dir))
     if backup is not None:
         _say("OK", f"旧目录已备份：{backup}")
-    shutil.copytree(SKILL_ROOT, skill_dir, ignore=IGNORE)
+    shutil.copytree(SKILL_ROOT, skill_dir, ignore=_copy_ignore)
     count = sum(1 for path in skill_dir.rglob("*") if path.is_file())
     _say("OK", f"Skill 已安装：{skill_dir}（{count} 个文件）")
 

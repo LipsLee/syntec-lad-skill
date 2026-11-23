@@ -38,6 +38,10 @@ class WorkBuddyInstallerTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             self.assertTrue((skill_dir / "SKILL.md").is_file())
             self.assertTrue((skill_dir / "scripts" / "syntec_lad_mcp.py").is_file())
+            self.assertFalse(
+                (skill_dir / "native" / "bin" / "LadSyntaxCheck.exe").exists(),
+                "the generated unsigned native helper must not be installed",
+            )
 
             second = subprocess.run(
                 command,

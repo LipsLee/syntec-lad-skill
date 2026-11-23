@@ -67,6 +67,7 @@ class McpServerTests(unittest.TestCase):
         names = {tool["name"] for tool in listed["result"]["tools"]}
         self.assertIn("inspect_lad", names)
         self.assertIn("lookup_address", names)
+        self.assertIn("lint_plan", names)
         self.assertIn("read_reference", names)
 
     def test_lookup_and_reference_tools(self) -> None:

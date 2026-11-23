@@ -567,6 +567,80 @@ def inspect_lad(
     return result
 
 
+def apply_inspection_filter(
+    result: dict[str, Any],
+    program: str | None = None,
+    network: str | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    """Narrow an inspection result to one program or one network candidate.
+
+    Returns the filtered copy plus a human-readable note (or None when no
+    filter was requested).  Raises LadValidationError when nothing matches.
+    """
+
+    if program is None and network is None:
+        return result, None
+    candidates = result["network_candidates"]
+    if program is not None:
+        wanted = program.strip().upper()
+        selected = [
+            candidate
+            for candidate in candidates
+            if str(candidate.get("program") or "").upper() == wanted
+        ]
+        label = f"program {program}"
+    else:
+        wanted = network.strip().upper()
+        if not wanted.startswith("N"):
+            try:
+                wanted = f"N{int(wanted):04d}"
+            except ValueError:
+                pass
+        selected = [
+            candidate
+            for candidate in candidates
+            if candidate["id"].upper() == wanted
+        ]
+        label = f"network {network}"
+    if not selected:
+        raise LadValidationError(f"no matching {label} in this ladder")
+    starts: list[int] = []
+    ends: list[int] = []
+    for candidate in selected:
+        starts.append(int(candidate["record_start"]))
+        ends.append(int(candidate["record_end"]))
+        for comment in candidate.get("leading_comments", []):
+            starts.append(int(comment["record_start"]))
+            ends.append(int(comment["record_end"]))
+    low = min(starts)
+    high = max(ends)
+    rows = [
+        row
+        for row in result["rows"]
+        if row["record_end"] >= low and row["record_start"] <= high
+    ]
+    comments = [
+        comment
+        for comment in result["comments"]
+        if comment["record_start"] >= low and comment["record_end"] <= high
+    ]
+    programs = result["programs"]
+    if program is not None:
+        wanted = program.strip().upper()
+        programs = [item for item in programs if item["name"].upper() == wanted]
+    filtered = dict(result)
+    filtered["network_candidates"] = selected
+    filtered["rows"] = rows
+    filtered["comments"] = comments
+    filtered["programs"] = programs
+    note = (
+        f"filter: {label} -> records {low}..{high}, "
+        f"{len(selected)} networks, {len(rows)} rows"
+    )
+    filtered["filter"] = note
+    return filtered, note
+
+
 def render_inspection(result: dict[str, Any], *, preview_rows: int = 0) -> str:
     source = result["source"]
     integrity = result["integrity"]
